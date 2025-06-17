@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Retake.Dtos;
+using Retake.Exceptions;
 using Retake.Services.Interface;
 
 namespace Retake.Controllers;
@@ -11,7 +12,7 @@ public class MoviesController : ControllerBase
     private readonly IMovieService _movieService;
 
     public MoviesController(IMovieService movieService)
-    
+
     {
         _movieService = movieService;
     }
@@ -28,11 +29,14 @@ public class MoviesController : ControllerBase
     {
         try
         {
-            await _movieService.AssignActorToMovieAsync(movieId, request.ActorId,
-                request.CharacterName);
+            await _movieService.AssignActorToMovieAsync(movieId, request.ActorId, request.CharacterName);
             return Created();
         }
-        catch (KeyNotFoundException ex)
+        catch (MovieNotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (ActorNotFoundException ex)
         {
             return NotFound(ex.Message);
         }

@@ -1,4 +1,6 @@
-﻿namespace Retake.Dtos;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Retake.Dtos;
 
 public class MovieDto
 {
@@ -19,6 +21,8 @@ public class ActorDto
 public class AssignActorRequestDto
 {
     public int ActorId { get; set; }
+    
+    [MaxLength(50)]
     public string CharacterName { get; set; }
 }
 

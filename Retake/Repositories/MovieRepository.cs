@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using Microsoft.Data.SqlClient;
 using Retake.Dtos;
+using Retake.Exceptions;
 
 namespace Retake.Repositories;
 
@@ -73,27 +74,53 @@ public class MovieRepository : IMovieRepository
         return movies.Values;
     }
 
-    public async Task AssignActorToMovieAsync(int movieId, int actorId, string characterName)
+   public async Task AssignActorToMovieAsync(int movieId, int actorId, string characterName)
     {
         var connectionString = _configuration.GetConnectionString("Default");
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
 
-        var query =
-            "INSERT INTO dbo.Actor_Movie (IdMovie, IdActor, CharacterName) VALUES (@IdMovie, @IdActor, @CharacterName);";
-
-        await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@IdMovie", movieId);
-        command.Parameters.AddWithValue("@IdActor", actorId);
-        command.Parameters.AddWithValue("@CharacterName", characterName);
+        await using var transaction = await connection.BeginTransactionAsync();
 
         try
         {
-            await command.ExecuteNonQueryAsync();
+            var movieCheckQuery = "SELECT 1 FROM Movie WHERE IdMovie = @IdMovie";
+            await using (var movieCmd = new SqlCommand(movieCheckQuery, connection, (SqlTransaction)transaction))
+            {
+                movieCmd.Parameters.AddWithValue("@IdMovie", movieId);
+                var movieExists = await movieCmd.ExecuteScalarAsync();
+                if (movieExists == null)
+                {
+                    throw new MovieNotFoundException($"Movie with ID {movieId} not found.");
+                }
+            }
+
+            var actorCheckQuery = "SELECT 1 FROM Actor WHERE IdActor = @IdActor";
+            await using (var actorCmd = new SqlCommand(actorCheckQuery, connection, (SqlTransaction)transaction))
+            {
+                actorCmd.Parameters.AddWithValue("@IdActor", actorId);
+                var actorExists = await actorCmd.ExecuteScalarAsync();
+                if (actorExists == null)
+                {
+                    throw new ActorNotFoundException($"Actor with ID {actorId} not found.");
+                }
+            }
+           
+            var insertQuery = "INSERT INTO Actor_Movie (IdMovie, IdActor, CharacterName) VALUES (@IdMovie, @IdActor, @CharacterName);";
+            await using (var insertCmd = new SqlCommand(insertQuery, connection, (SqlTransaction)transaction))
+            {
+                insertCmd.Parameters.AddWithValue("@IdMovie", movieId);
+                insertCmd.Parameters.AddWithValue("@IdActor", actorId);
+                insertCmd.Parameters.AddWithValue("@CharacterName", characterName);
+                await insertCmd.ExecuteNonQueryAsync();
+            }
+
+            await transaction.CommitAsync();
         }
-        catch (SqlException ex) 
+        catch (Exception)
         {
-            throw new KeyNotFoundException("Either the Movie ID or Actor ID does not exist.");
+            await transaction.RollbackAsync();
+            throw; 
         }
     }
 }
