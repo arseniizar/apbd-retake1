@@ -34,11 +34,11 @@ public class MoviesController : ControllerBase
         }
         catch (MovieNotFoundException ex)
         {
-            return NotFound(ex.Message);
+            return BadRequest(ex.Message);
         }
         catch (ActorNotFoundException ex)
         {
-            return NotFound(ex.Message);
+            return BadRequest(ex.Message);
         }
         catch (Exception)
         {
